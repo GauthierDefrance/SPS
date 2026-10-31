@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: sps-worker
+  main:
+    web-application-type: none          # pas de serveur web : le worker ne fait qu'écouter RabbitMQ
+  config:
+    # Lancé depuis IntelliJ (dossier worker/), le worker lit le .env du dépôt.
+    # Dans Docker, les mêmes variables sont fournies par docker-compose.yml.
+    import: optional:file:../.env[.properties]
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER}
+    password: ${RABBITMQ_PASSWORD}
+    publisher-confirm-type: simple       # les messages de progression sont confirmés par RabbitMQ
+    listener:
+      simple:
+        # Une seule vidéo réservée à la fois par consommateur : les autres restent dans la file
+        # pour les workers libres (sinon un worker en "réserverait" plusieurs d'avance)
+        prefetch: 1
+        # Une vidéo en échec part dans la file d'erreurs au lieu de revenir en boucle
+        default-requeue-rejected: false
+
+sps:
+  worker:
+    # Nom du worker, visible en base (processed_by) : dans Docker, l'identifiant du conteneur
+    id: ${WORKER_ID:${HOSTNAME:${COMPUTERNAME:worker}}}
+    # Vidéos traitées en parallèle par ce worker. FFmpeg utilise déjà tous les cœurs :
+    # on monte en charge en ajoutant des workers, pas en augmentant ce chiffre.
+    concurrency: ${WORKER_CONCURRENCY:1}
+  transcode:
+    ffmpeg: ${FFMPEG_PATH:ffmpeg}         # dans le PATH, sinon chemin complet
+    ffprobe: ${FFPROBE_PATH:ffprobe}
+    segment-seconds: 4                    # durée d'un segment HLS
+    preset: ${FFMPEG_PRESET:veryfast}     # compromis vitesse / taille (ultrafast ... veryslow)
+  s3:
+    endpoint: ${S3_ENDPOINT:http://localhost:${S3_PORT:8333}}
+    access-key: ${S3_ACCESS_KEY}
+    secret-key: ${S3_SECRET_KEY}
+    bucket-raw: ${S3_BUCKET_RAW:videos-raw}
+    bucket-hls: ${S3_BUCKET_HLS:videos-hls}

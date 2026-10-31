@@ -1,0 +1,132 @@
+<!doctype html>
+<!--
+  Page de test du lecteur HLS, servie par le backend : http://localhost:8081/player.html
+  Elle sera remplacée par le lecteur du frontend React. hls.js permet la lecture HLS dans
+  tous les navigateurs (Firefox ne lit pas le HLS nativement).
+-->
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SPS - Lecteur de test</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.18/dist/hls.min.js"></script>
+  <style>
+    :root { --bg: #f6f6f7; --panel: #fff; --text: #1d1d1f; --muted: #6e6e73; --border: #dcdce0; --accent: #2563eb; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #111113; --panel: #1c1c1f; --text: #ececf0; --muted: #9a9aa3; --border: #2e2e33; --accent: #60a5fa; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 15px/1.4 system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    main { display: grid; grid-template-columns: 1fr 320px; gap: 16px; max-width: 1280px; margin: 0 auto; padding: 16px; }
+    @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+    h1 { font-size: 18px; margin: 0 0 12px; }
+    video { width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 8px; }
+    .bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 10px; color: var(--muted); }
+    .bar strong { color: var(--text); }
+    select { font: inherit; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); color: var(--text); }
+    ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+    li button { width: 100%; text-align: left; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
+                background: var(--panel); color: var(--text); font: inherit; cursor: pointer; }
+    li button[aria-current="true"] { border-color: var(--accent); }
+    li small { display: block; color: var(--muted); }
+    #message { color: var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <section>
+    <h1 id="title">Choisis une vidéo</h1>
+    <video id="video" controls playsinline></video>
+    <div class="bar">
+      <label>Qualité <select id="quality" disabled></select></label>
+      <span>Affichée : <strong id="current">-</strong></span>
+      <span id="message"></span>
+    </div>
+  </section>
+  <aside>
+    <h1>Catalogue</h1>
+    <ul id="list"></ul>
+  </aside>
+</main>
+
+<script>
+  const video = document.getElementById('video');
+  const quality = document.getElementById('quality');
+  const current = document.getElementById('current');
+  const message = document.getElementById('message');
+  let hls = null;
+
+  async function loadCatalog() {
+    const page = await fetch('/api/videos?size=50').then(r => r.json());
+    const list = document.getElementById('list');
+    list.innerHTML = '';
+    for (const v of page.items) {
+      const button = document.createElement('button');
+      button.dataset.id = v.publicId;
+      const title = document.createElement('span');
+      title.textContent = v.title;                         // texte, jamais du HTML venant de l'API
+      const info = document.createElement('small');
+      info.textContent = Math.round(v.duration) + ' s · ' + v.views + ' vue(s)';
+      button.append(title, info);
+      button.onclick = () => play(v.publicId);
+      const li = document.createElement('li');
+      li.append(button);
+      list.append(li);
+    }
+    if (!page.items.length) message.textContent = 'Aucune vidéo prête pour l\'instant.';
+    const fromUrl = new URLSearchParams(location.search).get('id');
+    if (fromUrl) play(fromUrl);
+  }
+
+  async function play(publicId) {
+    history.replaceState(null, '', '?id=' + publicId);
+    document.querySelectorAll('li button').forEach(b => b.setAttribute('aria-current', b.dataset.id === publicId));
+    if (hls) { hls.destroy(); hls = null; }
+    video.removeAttribute('src');
+    quality.innerHTML = '';
+    quality.disabled = true;
+    current.textContent = '-';
+
+    const response = await fetch('/api/videos/' + encodeURIComponent(publicId));
+    if (!response.ok) { message.textContent = 'Vidéo introuvable.'; return; }
+    const v = await response.json();
+    document.getElementById('title').textContent = v.title;
+    if (v.status !== 'READY') {
+      message.textContent = 'Traitement : ' + v.status + ' ' + v.processing.progress + ' % ('
+          + (v.processing.step || '') + ')' + (v.processing.error ? ' - ' + v.processing.error : '');
+      return;
+    }
+    message.textContent = '';
+    fetch('/api/videos/' + encodeURIComponent(publicId) + '/view', { method: 'POST' });   // compte la vue
+
+    if (window.Hls && Hls.isSupported()) {
+      hls = new Hls({ capLevelToPlayerSize: true });   // pas de 1080p dans un lecteur de 400 px
+      hls.loadSource(v.hlsUrl);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        quality.add(new Option('Auto', '-1'));
+        hls.levels.map((level, i) => ({ level, i })).reverse()
+            .forEach(({ level, i }) => quality.add(new Option(Math.min(level.width, level.height) + 'p', String(i))));
+        quality.disabled = false;
+        video.play().catch(() => {});
+      });
+      hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
+        const level = hls.levels[data.level];
+        current.textContent = Math.min(level.width, level.height) + 'p' + (hls.autoLevelEnabled ? ' (auto)' : '');
+      });
+      hls.on(Hls.Events.ERROR, (_, data) => { if (data.fatal) message.textContent = 'Erreur de lecture : ' + data.details; });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = v.hlsUrl;               // Safari : HLS natif, qualité choisie par le navigateur
+      current.textContent = 'auto (navigateur)';
+    } else {
+      message.textContent = 'Ce navigateur ne sait pas lire le HLS.';
+    }
+  }
+
+  // -1 = automatique ; sinon on fixe la qualité (appliquée à partir du segment suivant)
+  quality.onchange = () => { if (hls) hls.currentLevel = Number(quality.value); };
+
+  loadCatalog().catch(e => { message.textContent = 'Impossible de charger le catalogue : ' + e.message; });
+</script>
+</body>
+</html>

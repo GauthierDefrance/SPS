@@ -1,0 +1,58 @@
+spring:
+  config:
+    import: optional:file:../.env[.properties]
+
+  datasource:
+    url: jdbc:postgresql://localhost:${POSTGRES_PORT}/${POSTGRES_DB}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+
+  servlet:
+    multipart:
+      max-file-size: 2GB          # taille maximale d'une vidéo uploadée
+      max-request-size: 2GB
+  mvc:
+    async:
+      request-timeout: 2m         # envoi d'un segment HLS au lecteur
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER}
+    password: ${RABBITMQ_PASSWORD}
+    # RabbitMQ confirme chaque message publié : l'upload attend cette confirmation (VideoUploadService)
+    publisher-confirm-type: simple
+    listener:
+      simple:
+        # Un message qui fait échouer le listener n'est pas remis en boucle dans la file
+        default-requeue-rejected: false
+
+  jpa:
+    hibernate:
+      # Flyway crée les tables (db/migration) ; Hibernate vérifie seulement que les entités
+      # correspondent au schéma, et refuse de démarrer sinon
+      ddl-auto: validate
+    open-in-view: false   # pas de requêtes SQL cachées pendant l'écriture de la réponse HTTP
+
+server:
+  # 8080 est occupé sur cette machine par un service Windows (AgentService).
+  # Modifiable sans toucher au fichier avec SERVER_PORT dans .env.
+  port: ${SERVER_PORT:8081}
+  # En production, le HTTPS est souvent géré par un reverse proxy (nginx, Caddy...) qui parle
+  # ensuite en HTTP au backend. Il transmet l'origine de la requête dans les en-têtes X-Forwarded-* :
+  # cette option les lit, pour que Spring sache que le client était bien en HTTPS.
+  forward-headers-strategy: framework
+
+sps:
+  jwt:
+    secret: ${JWT_SECRET}             # au moins 32 caractères, dans .env
+    access-token-ttl: 15m             # token d'accès : court, il ne peut pas être révoqué
+    refresh-token-ttl: 30d            # refresh token : la durée de la "session" sur un appareil
+    cookie-secure: true               # cookie envoyé seulement en HTTPS (et sur http://localhost)
+  s3:
+    endpoint: ${S3_ENDPOINT:http://localhost:${S3_PORT:8333}}
+    access-key: ${S3_ACCESS_KEY}
+    secret-key: ${S3_SECRET_KEY}
+    bucket-raw: ${S3_BUCKET_RAW:videos-raw}
+    bucket-hls: ${S3_BUCKET_HLS:videos-hls}
+    bucket-images: ${S3_BUCKET_IMAGES:images}

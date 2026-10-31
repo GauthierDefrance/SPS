@@ -1,0 +1,24 @@
+# Secrets locaux
+.env
+# Certificats et clés privées (générés localement, voir README)
+certs/
+*.p12
+*.key
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Java / Spring
+target/
+build/
+.gradle/
+
+# Node / React
+node_modules/
+dist/
+
+# OS
+.DS_Store
+Thumbs.db

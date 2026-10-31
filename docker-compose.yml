@@ -1,0 +1,119 @@
+# Infrastructure de développement SPS (Streaming Platform Service)
+# Lancement : docker compose up -d
+# Plus de puissance de transcodage : docker compose up -d --scale worker=3
+# Le backend se lance depuis IntelliJ (ou ./mvnw spring-boot:run dans backend/).
+
+name: sps
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: sps-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5434}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # SeaweedFS en mode "mini" : master, volume, filer, API S3 et interface d'administration
+  # dans un seul conteneur. Stockage objet compatible S3, adapté aux nombreux petits fichiers (segments HLS).
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.51
+    container_name: sps-seaweedfs
+    restart: unless-stopped
+    command: ["mini", "-dir=/data"]
+    environment:
+      # Identifiants de l'API S3 (compte administrateur créé au démarrage)
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+      # Sans mot de passe, l'interface d'administration n'écoute qu'à l'intérieur du conteneur
+      WEED_ADMIN_PASSWORD: ${SEAWEEDFS_ADMIN_PASSWORD}
+    ports:
+      - "127.0.0.1:${S3_PORT:-8333}:8333"                       # API S3
+      - "127.0.0.1:${SEAWEEDFS_ADMIN_PORT:-23646}:23646"        # Interface d'administration
+    volumes:
+      - seaweedfs-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8333/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Exécute storage/init.sh (création des buckets) une fois SeaweedFS prêt, puis s'arrête.
+  storage-init:
+    image: curlimages/curl:8.17.0
+    container_name: sps-storage-init
+    depends_on:
+      seaweedfs:
+        condition: service_healthy
+    restart: on-failure
+    entrypoint: ["/bin/sh", "/init.sh"]
+    environment:
+      S3_ENDPOINT: http://seaweedfs:8333
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_BUCKET_RAW: ${S3_BUCKET_RAW}
+      S3_BUCKET_HLS: ${S3_BUCKET_HLS}
+      S3_BUCKET_IMAGES: ${S3_BUCKET_IMAGES:-images}
+    volumes:
+      - ./storage/init.sh:/init.sh:ro
+
+  # File de messages : le backend y dépose les vidéos à traiter, les workers les prennent une par une
+  # et renvoient leur progression. Interface web : http://localhost:15672
+  rabbitmq:
+    image: rabbitmq:4.3.6-management-alpine
+    container_name: sps-rabbitmq
+    restart: unless-stopped
+    hostname: sps-rabbitmq            # RabbitMQ range ses données par nom d'hôte : il doit rester fixe
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+      # Un worker garde la vidéo "réservée" pendant tout son traitement. Par défaut, RabbitMQ la
+      # reprend au bout de 30 min : trop court pour une longue vidéo 4K. On passe à 6 h.
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: "-rabbit consumer_timeout 21600000"
+    ports:
+      - "127.0.0.1:${RABBITMQ_PORT:-5672}:5672"                       # AMQP (backend, workers)
+      - "127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"          # Interface web
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  # Worker de transcodage (FFmpeg). Sans état : on en lance autant qu'on veut, sur cette machine
+  # (--scale worker=N) ou sur d'autres, du moment qu'elles joignent RabbitMQ et le stockage S3.
+  # Pas de container_name, sinon Docker ne pourrait pas en lancer plusieurs.
+  worker:
+    build: ./worker
+    restart: unless-stopped
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      storage-init:
+        condition: service_completed_successfully
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      S3_ENDPOINT: http://seaweedfs:8333
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_BUCKET_RAW: ${S3_BUCKET_RAW}
+      S3_BUCKET_HLS: ${S3_BUCKET_HLS}
+
+volumes:
+  postgres-data:
+  seaweedfs-data:
+  rabbitmq-data:

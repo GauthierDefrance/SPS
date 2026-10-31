@@ -1,0 +1,11 @@
+# Profil "https" : le backend sert lui-même du HTTPS, avec le certificat local de backend/certs.
+# Activation : variable SPRING_PROFILES_ACTIVE=https, ou "Active profiles: https" dans la
+# configuration de lancement d'IntelliJ. Sans ce profil, le backend reste en HTTP.
+server:
+  port: 8443                                  # port habituel du HTTPS hors 443
+  ssl:
+    enabled: true
+    key-store: file:certs/localhost.p12       # relatif au dossier de lancement (backend/)
+    key-store-type: PKCS12
+    key-store-password: ${SSL_KEYSTORE_PASSWORD}
+    key-alias: localhost

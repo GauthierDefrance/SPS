@@ -1,0 +1,49 @@
+/* Styles de base : couleurs (thème clair et sombre) et typographie.
+   Boutons, champs, listes... viennent de Vuetify (src/plugins/vuetify.ts) ; ses couleurs
+   "primary", "surface"... suivent le même thème, choisi par le système (clair ou sombre). */
+
+:root {
+  --bg: #ffffff;
+  --surface: #f4f4f6;
+  --surface-hover: #e9e9ed;
+  --text: #16161a;
+  --muted: #64646e;
+  --border: #dedee3;
+  --accent: #d62839;
+  --accent-text: #ffffff;
+  --radius: 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f0f12;
+    --surface: #1c1c21;
+    --surface-hover: #27272e;
+    --text: #ececf1;
+    --muted: #9b9ba6;
+    --border: #2d2d35;
+    --accent: #ef4458;
+  }
+}
+
+/* Police du système plutôt que Roboto (pas de police à télécharger) */
+.v-application, .v-application .text-h5 {
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.v-application { font-size: 15px; line-height: 1.45; }
+
+h1 { font-size: 1.5rem; font-weight: 700; margin: 0 0 16px; line-height: 1.25; }
+h2 { font-size: 1.1rem; font-weight: 600; margin: 0 0 12px; }
+p { margin: 0 0 8px; }
+a { color: inherit; text-decoration: none; }
+a:hover { text-decoration: underline; }
+img { display: block; max-width: 100%; }
+
+.muted { color: var(--muted); }
+.strong { font-weight: 600; }
+.center-small { text-align: center; margin-top: 20px; }
+.pre-line { white-space: pre-line; }
+.small-text { font-size: 0.8rem; }
+.loading { opacity: 0.6; transition: opacity 0.2s; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
