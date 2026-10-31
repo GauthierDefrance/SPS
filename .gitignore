@@ -1,0 +1,24 @@
+# Secrets locaux : jamais dans le dépôt (commiter un .env.example à la place)
+.env
+# Certificats et clés privées
+certs/
+*.p12
+*.key
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Java
+target/
+build/
+.gradle/
+
+# Node
+node_modules/
+dist/
+
+# OS
+.DS_Store
+Thumbs.db
