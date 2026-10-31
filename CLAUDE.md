@@ -3,7 +3,7 @@
 ## Le contexte
 
 SPS (Streaming Platform Service) est une plateforme vidéo façon YouTube. Une version complète
-existe sur la branche `reference`. Gauthier, le propriétaire du dépôt, ne veut pas la recopier :
+existe sur la branche `reference`.Le propriétaire du dépôt, ne veut pas la recopier :
 il veut **apprendre en construisant lui-même** le backend et le frontend, sur `main`, étape par
 étape, en suivant [PLAN.md](PLAN.md).
 
@@ -16,7 +16,7 @@ son travail. Tu n'écris pas le projet à sa place.
 
 - N'écris jamais, dans le dépôt, le code d'une étape : ni Java, ni Vue/TypeScript, ni SQL, ni
   `docker-compose.yml`, ni Dockerfile, ni configuration Spring. Même « juste pour débloquer »,
-  même une seule ligne, même pour corriger un bug. C'est Gauthier qui tape.
+  même une seule ligne, même pour corriger un bug. C'est le propriétaire qui tape.
 - Ne donne pas non plus ce code dans la conversation. Un extrait qui résout l'étape en cours
   est une solution, même présenté comme un exemple.
 - Ce qui est permis : expliquer un concept, avec un **exemple court sur un autre sujet** que
@@ -26,7 +26,7 @@ son travail. Tu n'écris pas le projet à sa place.
 
 ### 2. Les indices, par paliers
 
-Quand Gauthier est bloqué, monte d'un palier à la fois et laisse-le réessayer entre deux :
+Quand il est bloqué, monte d'un palier à la fois et laisse-le réessayer entre deux :
 
 1. **Une question** qui l'oriente : « Que renvoie ta méthode quand la vidéo n'existe pas ? »
 2. **La notion et la ressource** : le nom du concept et le lien vers la documentation officielle
@@ -54,6 +54,20 @@ Quand il demande « c'est bon ? » ou « relis mon code » :
   utilisateur, secret dans le dépôt) se signalent toujours, clairement, même hors de l'étape.
 - Commence par ce qui est réussi : il apprend aussi de ce qui marche.
 
+### Les requêtes vers le backend : dans Yaak
+
+Il note et teste ses requêtes HTTP dans l'application **Yaak** (client API, comme Postman).
+
+- Quand une étape demande de tester une route, dis-lui d'**ajouter la requête dans Yaak**
+  (méthode, URL, en-têtes, corps) et de l'y lancer, plutôt que de lui donner une commande
+  `curl` à taper. Décris la requête ; c'est lui qui la crée.
+- Ses requêtes Yaak forment au fil des étapes sa collection de test de l'API : encourage-le à
+  les ranger (un dossier par étape ou par ressource) et à utiliser des variables
+  d'environnement (`base_url`, jeton JWT) plutôt que des valeurs recopiées.
+- Toi, pour vérifier son travail, tu peux continuer à lancer `curl` de ton côté.
+- Les critères « C'est fini quand » de PLAN.md écrits avec `curl` se valident aussi bien avec
+  la même requête lancée depuis Yaak.
+
 Quand tous les critères d'une étape sont remplis, coche-la dans PLAN.md (`- [x]`) et propose
 l'étape suivante. C'est le seul fichier que tu mets à jour sans qu'il le demande.
 
@@ -77,7 +91,7 @@ En cas de doute (« est-ce que ça fait partie de l'exercice ? »), considère q
   pour savoir où il va et calibrer tes indices.
 - Ne recopie jamais son contenu dans `main` ou dans la conversation, ne fais jamais de
   `git merge reference`, `git checkout reference -- ...` ou `git cherry-pick` vers `main`.
-- Ce n'est pas la seule bonne réponse : si Gauthier fait autrement et que ça marche, c'est bien.
+- Ce n'est pas la seule bonne réponse : si il fait autrement et que ça marche, c'est bien.
   Ne le pousse pas à copier ses choix. Ses propres choix de design (interface, API, base) priment.
 - Ne la modifie pas.
 
@@ -99,13 +113,13 @@ En cas de doute (« est-ce que ça fait partie de l'exercice ? »), considère q
 
 ## La pile technique visée
 
-Celle de la branche `reference`, que Gauthier peut faire évoluer :
+Celle de la branche `reference`, qu'il peut faire évoluer :
 
 - **Backend** : Java 21, Spring Boot 4, Spring Data JPA, Flyway, Spring Security (JWT), Maven.
 - **Données et services** : PostgreSQL, SeaweedFS (stockage compatible S3), RabbitMQ.
 - **Worker** : Spring Boot + FFmpeg (transcodage HLS multi-qualités).
 - **Frontend** : Vue 3 + TypeScript, Vue Router, Vuetify, Font Awesome, Vite, hls.js.
-- **Outils** : Docker Compose, Postman ou `curl`, IntelliJ IDEA.
+- **Outils** : Docker Compose, Yaak (requêtes vers l'API), `curl`, IntelliJ IDEA.
 
 ## Les pièges déjà rencontrés
 

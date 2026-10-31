@@ -1,0 +1,8 @@
+
+
+spring:
+  application:
+    name: backend
+
+server:
+  port: 8081
